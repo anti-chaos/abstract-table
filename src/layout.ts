@@ -8,8 +8,6 @@ import {
   ITableCell,
   ITableRow,
   ITableRowConfig,
-  ITableViewConfig,
-  ITableLayoutInitializer,
   TableLayoutConfig,
   RowMergingConfigMap,
   ITableColumnOptions,
@@ -24,14 +22,7 @@ import {
 } from './util';
 
 class TableLayout implements ITableLayout {
-  public readonly layout$: MemoryStream<TableLayoutConfig>;
-
   private layout: TableLayoutConfig;
-
-  private dsl: IDslResolver;
-
-  private fields: IMixedField[];
-  private fieldsMap: { [key: string]: IMixedField };
 
   private columnsMap: { [key: string]: ITableColumn };
   // 记录表体行信息
@@ -56,15 +47,6 @@ class TableLayout implements ITableLayout {
 
   private columnConfig: ITableColumnConfig;
   private rowConfig: ITableRowConfig;
-  private tableConfig: ITableViewConfig;
-
-  /**
-   * 当启用单条记录操作行内显示，
-   * 或启用行内编辑时显示操作列
-   */
-  private isOperationColumnShown(): boolean {
-    return this.tableConfig.showInlineActions === true || this.tableConfig.enableInlineEditing === true;
-  }
 
   private addTrunkDepth(
     trunk: ITableColumn | ITableRow,
@@ -88,14 +70,14 @@ class TableLayout implements ITableLayout {
    * @param col 列
    */
   private resolveDataKey(col: ITableColumn): string {
-    const fieldNames: string[] = [col.fields!.map((f) => f.name).join('$$')];
+    const fieldNames: string[] = [col.fields!.map(f => f.name).join('$$')];
 
     let trunk = col;
 
     while (trunk.trunk) {
       trunk = this.getColumnById(trunk.trunk!);
 
-      fieldNames.unshift(trunk.fields!.map((f) => f.name).join('$$'));
+      fieldNames.unshift(trunk.fields!.map(f => f.name).join('$$'));
     }
 
     return fieldNames.join('.');
@@ -139,136 +121,13 @@ class TableLayout implements ITableLayout {
     return cols;
   }
 
-  private resolveFieldBundles(): { left: ITableFieldBundle[]; center: ITableFieldBundle[] } {
-    const prependFieldBundles: ITableFieldBundle[] = [];
-    const otherFieldBundles: ITableFieldBundle[] = [];
-
-    let idField: IMixedField = null as any;
-    let idFieldNodeId: DslNodeId = '';
-
-    this.dsl.root!.children.forEach((n) => {
-      const fields: IMixedField[] = [];
-      const fieldNodeIds: DslNodeId[] = [];
-
-      let label: string = '';
-      let hint: string = '';
-      let width: string = '';
-
-      const config = (n as any).config || {};
-
-      if (config.columnWidth) {
-        const matchedResult = String(config.columnWidth).match(/^(\d+(?:\.\d+)?)(%|px)?$/);
-
-        if (matchedResult) {
-          width = `${parseFloat(matchedResult[1])}${matchedResult[2] || 'px'}`;
-        }
-      }
-
-      if (isSpecificElement(n, 'group')) {
-        if (config.hint) {
-          hint = config.hint;
-        }
-
-        label = n.props.title;
-
-        if (n.children.length > 0) {
-          n.children.forEach((_n) => {
-            if (!isSpecificElement(_n, 'field')) {
-              return;
-            }
-
-            const f = this.fieldsMap[_n.props.name];
-
-            if (f) {
-              if (f.name === 'id') {
-                idField = f;
-                idFieldNodeId = _n.id;
-              } else {
-                fields.push(f);
-                fieldNodeIds.push(_n.id);
-              }
-            }
-          });
-        }
-      } else if (isSpecificElement(n, 'field')) {
-        const f = this.fieldsMap[n.props.name];
-
-        if (!f) {
-          return;
-        }
-
-        if (f.name === 'id') {
-          idField = f;
-          idFieldNodeId = n.id;
-        } else {
-          if (n.props.hint) {
-            hint = n.props.hint;
-          }
-
-          label = f.displayName!;
-
-          fields.push(f);
-          fieldNodeIds.push(n.id);
-        }
-      }
-
-      if (fields.length === 0) {
-        return;
-      }
-
-      const bundle: ITableFieldBundle = { fields, fieldNodeIds, label, config };
-
-      if (hint) {
-        bundle.hint = hint;
-      }
-
-      if (width) {
-        bundle.width = width;
-      }
-
-      otherFieldBundles.push(bundle);
-    });
-
-    if (idField) {
-      prependFieldBundles.push({
-        fields: [idField],
-        fieldNodeIds: [idFieldNodeId],
-        label: idField.displayName!,
-        config: (idField as any).config || {},
-      });
-    }
-
-    return { left: prependFieldBundles, center: otherFieldBundles };
-  }
-
   private initColumnConfig(): ITableColumnConfig {
-    const { left, center } = this.resolveFieldBundles();
-    const columnsAtLeft: ITableColumn[] = this.createColumns(left, 'left');
-    const columnsAtCenter: ITableColumn[] = this.createColumns(center, 'center');
-
-    [...columnsAtLeft, ...columnsAtCenter].forEach((col) => {
-      this.dataColumns.push(col);
-      this.dataColumnsMap[col.dataKey!] = col;
-
-      if (col.dataKey! === 'id') {
-        this.idColumn = col;
-      }
-    });
-
-    const { tableConfig } = this;
-
-    if (this.idColumn) {
-      this.idColumn.hidden = tableConfig.showIdColumnAlways !== true && this.idColumn.fields![0].invisible === true;
-    }
-
-    const columnsAtRight: ITableColumn[] = [];
-
     this.checkboxColumn = {
       id: generateColumnId(),
       position: 'left',
       type: 'checkbox',
       label: '',
-      hidden: tableConfig.checkable !== true,
+      hidden: true,
       config: {},
     };
 
@@ -277,7 +136,7 @@ class TableLayout implements ITableLayout {
       position: 'left',
       type: 'sequence',
       label: '序号',
-      hidden: tableConfig.showSequenceNumber !== true,
+      hidden: true,
       config: {},
     };
 
@@ -286,14 +145,14 @@ class TableLayout implements ITableLayout {
       position: 'right',
       type: 'operation',
       label: '操作',
-      hidden: !this.isOperationColumnShown(),
+      hidden: true,
       config: {},
     };
 
-    columnsAtLeft.unshift(this.checkboxColumn, this.sequenceColumn);
-    columnsAtRight.push(this.operationColumn);
+    const columnsAtLeft: ITableColumn[] = [this.checkboxColumn, this.sequenceColumn];
+    const columnsAtRight: ITableColumn[] = [this.operationColumn];
 
-    [...columnsAtLeft, ...columnsAtCenter, ...columnsAtRight].forEach((col) => {
+    [...columnsAtLeft, ...columnsAtRight].forEach(col => {
       this.columnsMap[col.id] = col;
 
       this.trunkColumns.push(col);
@@ -302,8 +161,8 @@ class TableLayout implements ITableLayout {
 
     return {
       left: initColumnBundle(columnsAtLeft),
-      center: initColumnBundle(columnsAtCenter),
-      right: initColumnBundle(columnsAtRight, tableConfig.fixedRightColumns === true),
+      center: initColumnBundle(),
+      right: initColumnBundle(columnsAtRight),
     };
   }
 
@@ -317,9 +176,9 @@ class TableLayout implements ITableLayout {
 
     let idx = 0;
 
-    columns.forEach((col) => {
+    columns.forEach(col => {
       if (col.branches && col.branches.length > 0) {
-        const children = col.branches.map((id) => this.getColumnById(id));
+        const children = col.branches.map(id => this.getColumnById(id));
 
         cols.splice(idx, 1, ...children);
 
@@ -334,7 +193,7 @@ class TableLayout implements ITableLayout {
 
   private resolveTableHeaderRows(): ITableRow[] {
     const rows: ITableRow[] = [];
-    const rowCount = Math.max(...this.trunkColumns.map((col) => col.depth || 0)) + 1;
+    const rowCount = Math.max(...this.trunkColumns.map(col => col.depth || 0)) + 1;
 
     let cols = this.trunkColumns;
     let currentDepth = 0;
@@ -343,7 +202,7 @@ class TableLayout implements ITableLayout {
       const row: ITableRow = { id: generateRowId(), position: 'top', cells: [] };
       const nextCols: ITableColumn[] = [];
 
-      cols.forEach((col) => {
+      cols.forEach(col => {
         const depth = col.depth || 0;
 
         row.cells.push({
@@ -377,7 +236,7 @@ class TableLayout implements ITableLayout {
 
     // 更改主行中每个不是指定列的扩展列的单元格的跨行属性，
     // 增量比新增行的数量少一个是因为新增行的首行与主行重叠
-    trunkRow.cells.forEach((cell) => {
+    trunkRow.cells.forEach(cell => {
       if (cell.column.trunk !== trunkColumn.id) {
         cell.rowSpan = (cell.rowSpan || 1) + rows.length - 1;
       }
@@ -389,7 +248,7 @@ class TableLayout implements ITableLayout {
     rows.slice(1).forEach(({ cells, ...others }) => {
       const newRow: ITableRow = {
         ...others,
-        cells: cells.filter((c) => c.column.trunk === trunkColumn.id),
+        cells: cells.filter(c => c.column.trunk === trunkColumn.id),
       };
 
       this.rowsMap[newRow.id] = newRow;
@@ -402,7 +261,7 @@ class TableLayout implements ITableLayout {
 
   private initRowConfig(): ITableRowConfig {
     return {
-      top: initRowBundle(this.resolveTableHeaderRows(), !this.tableConfig.embedded && this.tableConfig.fixedHeader),
+      top: initRowBundle(this.resolveTableHeaderRows()),
       middle: initRowBundle(),
       bottom: initRowBundle(),
     };
@@ -418,11 +277,11 @@ class TableLayout implements ITableLayout {
 
   private changeDataColumnsVisibility(visible: boolean, dataKeys?: string): void {
     if (dataKeys) {
-      dataKeys.split(',').forEach((key) => {
+      dataKeys.split(',').forEach(key => {
         this.changeColumnVisibility(this.dataColumnsMap[key], visible);
       });
     } else {
-      this.dataColumns.forEach((col) => {
+      this.dataColumns.forEach(col => {
         // ID 列需要特殊处理
         if (col.id !== this.idColumn.id) {
           this.changeColumnVisibility(col, visible);
@@ -450,7 +309,7 @@ class TableLayout implements ITableLayout {
       this.addTrunkDepth(trunk, this.rowsMap);
     }
 
-    vms.forEach((vm) => {
+    vms.forEach(vm => {
       const row: ITableRow = {
         id: generateRowId(),
         position,
@@ -491,7 +350,7 @@ class TableLayout implements ITableLayout {
 
   private sanitizeRows(rows: ITableRow[]): ITableRow[] {
     return rows.map(({ cells, ...others }) => {
-      return { ...others, cells: cells.filter((c) => !c.column.hidden) };
+      return { ...others, cells: cells.filter(c => !c.column.hidden) };
     });
   }
 
@@ -507,7 +366,7 @@ class TableLayout implements ITableLayout {
         const mergedRows = rows.slice(startIndex, startIndex + span).map(({ cells, ...others }, idx) => {
           const newCells: ITableCell[] = [];
 
-          cells.forEach((cell) => {
+          cells.forEach(cell => {
             if (cell.column.type === 'data' && cell.column.dataKey === fieldName) {
               if (idx === 0) {
                 newCells.push({
@@ -535,7 +394,6 @@ class TableLayout implements ITableLayout {
 
   private setLayout(layout: TableLayoutConfig): void {
     this.layout = layout;
-    this.layout$._n(layout);
   }
 
   private resolveLayout(): void {
@@ -558,15 +416,9 @@ class TableLayout implements ITableLayout {
     this.setLayout(layout);
   }
 
-  public constructor(initializer: ITableLayoutInitializer) {
-    this.fields = initializer.fields;
-    this.dsl = initializer.dsl;
-    this.tableConfig = initializer.config || {};
-
-    this.layout$ = xs.createWithMemory<TableLayoutConfig>();
+  public constructor() {
     this.layout = {} as any;
 
-    this.fieldsMap = this.fields.reduce((p, f) => ({ ...p, [f.name]: f }), {});
     this.columnsMap = {};
     this.rowsMap = {};
     this.trunkColumns = [];
@@ -625,7 +477,7 @@ class TableLayout implements ITableLayout {
   }
 
   public getColumns(): ITableColumn[] {
-    return this.columns.filter((col) => !col.hidden);
+    return this.columns.filter(col => !col.hidden);
   }
 
   public getAllColumns(): ITableColumn[] {
@@ -637,7 +489,7 @@ class TableLayout implements ITableLayout {
   }
 
   public getTrunkColumns(): ITableColumn[] {
-    return this.trunkColumns.filter((col) => !col.hidden);
+    return this.trunkColumns.filter(col => !col.hidden);
   }
 
   // TODO
@@ -731,11 +583,11 @@ class TableLayout implements ITableLayout {
   public appendBranchColumns(trunkColumn: ITableColumn, fieldBundles: ITableFieldBundle[]): ITableColumn[] {
     const cols = this.createColumns(fieldBundles, 'center', this.getColumnById(trunkColumn.id));
 
-    cols.forEach((col) => {
+    cols.forEach(col => {
       this.columnsMap[col.id] = col;
     });
 
-    const trunkIndex = this.columns.findIndex((col) => col.id === trunkColumn.id);
+    const trunkIndex = this.columns.findIndex(col => col.id === trunkColumn.id);
 
     this.columns.splice(trunkIndex, 1, ...cols);
 
@@ -760,7 +612,7 @@ class TableLayout implements ITableLayout {
    */
   public appendBranchRows(trunkRow: ITableRow, vms: IObjectVM[], trunkColumn?: ITableColumn): ITableRow[] {
     const rows = this.resolveNewTableBodyRows(this.createRows(vms, 'middle', trunkRow), trunkColumn);
-    const trunkIndex = this.rowConfig.middle.rows.findIndex((row) => row.id === trunkRow.id);
+    const trunkIndex = this.rowConfig.middle.rows.findIndex(row => row.id === trunkRow.id);
 
     this.rowConfig.middle.rows.splice(trunkIndex + 1, 0, ...rows);
     this.resolveLayout();
@@ -784,10 +636,10 @@ class TableLayout implements ITableLayout {
 
     const lastColumn = this.columnConfig[position].columns.slice(-1).pop()!;
 
-    const indexInTrunkColumns = this.trunkColumns.findIndex((col) => col.id === lastColumn.id) + 1;
+    const indexInTrunkColumns = this.trunkColumns.findIndex(col => col.id === lastColumn.id) + 1;
     this.trunkColumns.splice(indexInTrunkColumns, 0, col);
 
-    const indexInColumns = this.columns.findIndex((col) => col.id === lastColumn.id) + 1;
+    const indexInColumns = this.columns.findIndex(col => col.id === lastColumn.id) + 1;
     this.columns.splice(indexInColumns, 0, col);
 
     this.updateTableHeaderRows();

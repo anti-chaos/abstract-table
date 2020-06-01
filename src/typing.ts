@@ -1,6 +1,5 @@
 interface ITableFieldBundle {
   fields: IMixedField[];
-  fieldNodeIds: DslNodeId[];
   label: string;
   hint?: string;
   width?: string;
@@ -28,7 +27,6 @@ interface ITableColumn extends ITableBasis {
   hidden?: boolean;
   flag?: string;
   fields?: IMixedField[];
-  fieldNodeIds?: DslNodeId[];
   dataKey?: string;
   config?: { [key: string]: any };
 }
@@ -70,29 +68,6 @@ interface ITableRowConfig {
   bottom: ITableRowBundle; // 表脚
 }
 
-type TableInlineEditingInsertPosition = 'top' | 'bottom';
-
-interface ITableViewConfig extends IListViewConfig {
-  checkable?: boolean;
-  showSequenceNumber?: boolean; // 显示序号
-  showFilter?: boolean;
-  showPagination?: boolean;
-  showInlineActions?: boolean;
-  showIdColumnAlways?: boolean;
-  fixedHeader?: boolean;
-  fixedRightColumns?: boolean;
-  enableInlineEditing?: boolean;
-  inlineMode?: TableInlineEditingInsertPosition;
-  inlineActionsVisibleCount?: number;
-  showSummary?: string; // 显示合计/汇总的字段
-}
-
-interface ITableLayoutInitializer {
-  fields: IMixedField[];
-  dsl: IDslResolver;
-  config?: ITableViewConfig;
-}
-
 type TableLayoutConfig = ITableColumnConfig & ITableRowConfig;
 
 type RowMergingConfig = {
@@ -108,7 +83,6 @@ interface ITableColumnOptions {
 }
 
 interface ITableLayout {
-  layout$: MemoryStream<TableLayoutConfig>;
   setRightFixed: (fixed: boolean) => void;
   isLeftFixed: () => boolean;
   isRightFixed: () => boolean;
@@ -204,8 +178,6 @@ export {
   ITableRow,
   ITableRowBundle,
   ITableRowConfig,
-  ITableViewConfig,
-  ITableLayoutInitializer,
   TableLayoutConfig,
   RowMergingConfig,
   RowMergingConfigMap,

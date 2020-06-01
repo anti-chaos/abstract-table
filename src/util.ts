@@ -19,7 +19,7 @@ function generateRowId(): TableBasisId {
   return generateRandomId('row');
 }
 
-function initColumnBundle(columns: ITableColumn[], fixed: boolean = false): ITableColumnBundle {
+function initColumnBundle(columns: ITableColumn[] = [], fixed: boolean = false): ITableColumnBundle {
   return { columns, fixed };
 }
 
