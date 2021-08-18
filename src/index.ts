@@ -1,2 +1,2 @@
-export * from './typing';
-export { TableLayout as AbstractTable } from './layout';
+export { TableCell, TableRow } from './typing';
+export { default } from './AbstractTable';

@@ -1,191 +1,53 @@
-interface ITableFieldBundle {
-  fields: IMixedField[];
-  label: string;
-  hint?: string;
-  width?: string;
-  config?: { [key: string]: any };
+type ColSpan = number;
+type RowSpan = number;
+
+type CellId = string;
+
+interface TableCell {
+  id: CellId;
+  span?: [ColSpan, RowSpan];
+  mergedCoord?: string;
 }
 
-type TableBasisId = string;
+type RowId = string;
 
-interface ITableBasis {
-  id: TableBasisId;
-  trunk?: TableBasisId;
-  branches?: TableBasisId[];
-  depth?: number;
+interface InternalRow {
+  id: RowId;
+  cells: CellId[];
 }
 
-type TableColumnType = 'data' | 'operation' | 'checkbox' | 'sequence';
-type TableColumnPosition = 'left' | 'center' | 'right';
-
-interface ITableColumn extends ITableBasis {
-  position: TableColumnPosition;
-  label: string;
-  type?: TableColumnType;
-  hint?: string;
-  width?: string;
-  hidden?: boolean;
-  flag?: string;
-  fields?: IMixedField[];
-  dataKey?: string;
-  config?: { [key: string]: any };
+interface TableRow extends Omit<InternalRow, 'cells'> {
+  cells: TableCell[];
 }
 
-interface ITableColumnBundle {
-  columns: ITableColumn[];
-  fixed: boolean;
+interface SelectionRange {
+  sri: number; // start row index
+  sci: number; // start column index
+  eri: number; // end row index
+  eci: number; // end column index
 }
 
-interface ITableColumnConfig {
-  left: ITableColumnBundle; // 描述区
-  center: ITableColumnBundle; // 数据区
-  right: ITableColumnBundle; // 操作区
+interface TableSelection {
+  range: SelectionRange;
 }
 
-interface ITableCell {
-  column: ITableColumn;
-  vm?: IFieldVM;
-  colSpan?: number;
-  rowSpan?: number;
-}
+type CellCreator = () => Omit<TableCell, 'id'>;
+type RowCreator = () => Omit<InternalRow, 'id' | 'cells'>;
 
-type TableRowPosition = 'top' | 'middle' | 'bottom';
-
-interface ITableRow extends ITableBasis {
-  position: TableRowPosition;
-  vm?: IObjectVM;
-  cells: ITableCell[];
-}
-
-interface ITableRowBundle {
-  rows: ITableRow[];
-  fixed: boolean;
-}
-
-interface ITableRowConfig {
-  top: ITableRowBundle; // 表头
-  middle: ITableRowBundle; // 表体
-  bottom: ITableRowBundle; // 表脚
-}
-
-type TableLayoutConfig = ITableColumnConfig & ITableRowConfig;
-
-type RowMergingConfig = {
-  startIndex: number;
-  span: number;
-};
-
-type RowMergingConfigMap = { [key: string]: RowMergingConfig[] };
-
-interface ITableColumnOptions {
-  position: TableColumnPosition;
-  flag?: string;
-}
-
-interface ITableLayout {
-  setRightFixed: (fixed: boolean) => void;
-  isLeftFixed: () => boolean;
-  isRightFixed: () => boolean;
-  isTopFixed: () => boolean;
-  isBottomFixed: () => boolean;
-  getColumnById: (columnId: TableBasisId) => ITableColumn;
-  getTrunkColumn: (columnId: TableBasisId) => ITableColumn;
-  getRootColumn: (columnId: TableBasisId) => ITableColumn;
-  getColumns: () => ITableColumn[];
-  getAllColumns: () => ITableColumn[];
-  getDataColumns: () => ITableColumn[];
-  getTrunkColumns: () => ITableColumn[];
-  hideColumns: (columns: ITableColumn[]) => void;
-  showColumns: (columns: ITableColumn[]) => void;
-  hideColumn: (columnId: TableBasisId) => void;
-  showColumn: (columnId: TableBasisId) => void;
-  hideDataColumns: (dataKeys: string) => void;
-  showDataColumns: (dataKeys: string) => void;
-  hideCheckboxColumn: () => void;
-  showCheckboxColumn: () => void;
-  hideSequenceColumn: () => void;
-  showSequenceColumn: () => void;
-  hideIdColumn: () => void;
-  showIdColumn: () => void;
-  hideOperationColumn: () => void;
-  showOperationColumn: () => void;
-  hideAllDataColumns: () => void;
-  showAllDataColumns: () => void;
-  getTableHeaderRows: () => ITableRow[];
-  getTableBodyRows: () => ITableRow[];
-  updateTableBodyRows: (vms: IObjectVM[], mergingConfigMap?: RowMergingConfigMap) => void;
-  appendBranchColumns: (trunkColumn: ITableColumn, fieldBundles: ITableFieldBundle[]) => ITableColumn[];
-  appendBranchRows: (trunkRow: ITableRow, vms: IObjectVM[], trunkColumn?: ITableColumn) => ITableRow[];
-  insertColumn: (options: TableColumnPosition | ITableColumnOptions) => ITableColumn;
-}
-
-interface IMixedTableColumn extends ITableColumn {
-  parent?: IMixedTableColumn;
-  children?: IMixedTableColumn[];
-}
-
-interface IMixedTableColumnBundle extends ITableColumnBundle {
-  columns: IMixedTableColumn[];
-}
-
-interface IMixedTableCell extends ITableCell {
-  column: IMixedTableColumn;
-}
-
-interface IMixedTableRow extends ITableRow {
-  cells: IMixedTableCell[];
-}
-
-interface IMixedTableRowBundle extends ITableRowBundle {
-  rows: IMixedTableRow[];
-}
-
-interface ITableListViewRenderLayout {
-  left: IMixedTableColumnBundle;
-  center: IMixedTableColumnBundle;
-  right: IMixedTableColumnBundle;
-  top: IMixedTableRowBundle;
-  middle: IMixedTableRowBundle;
-  bottom: IMixedTableRowBundle;
-}
-
-interface ITableListViewRenderState {
-  fields: IMixedField[];
-  columns: IMixedTableColumn[];
-  trunkColumns: IMixedTableColumn[];
-  summary: { [key: string]: number };
-  layout: ITableListViewRenderLayout;
-  userPrefer: {
-    standalone: boolean;
-    visibleFields: string[];
-    change: (...args: any[]) => void;
-    save: (...args: any[]) => void;
-    reset: (...args: any[]) => void;
-  };
-  getBehavior: (path: string) => { [key: string]: any };
+interface Initializer {
+  cellCreator: CellCreator;
+  rowCreator: RowCreator;
+  colCount: number;
+  rowCount: number;
 }
 
 export {
-  ITableFieldBundle,
-  TableBasisId,
-  TableColumnType,
-  TableColumnPosition,
-  TableRowPosition,
-  ITableColumn,
-  ITableColumnBundle,
-  ITableColumnConfig,
-  ITableCell,
-  ITableRow,
-  ITableRowBundle,
-  ITableRowConfig,
-  TableLayoutConfig,
-  RowMergingConfig,
-  RowMergingConfigMap,
-  ITableColumnOptions,
-  ITableLayout,
-  IMixedTableColumn,
-  IMixedTableCell,
-  IMixedTableRow,
-  ITableListViewRenderLayout,
-  ITableListViewRenderState,
+  CellId,
+  TableCell,
+  InternalRow,
+  TableRow,
+  TableSelection,
+  CellCreator,
+  RowCreator,
+  Initializer,
 };

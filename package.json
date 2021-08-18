@@ -2,16 +2,23 @@
   "name": "@ntks/abstract-table",
   "version": "0.0.0",
   "description": "Table without entity",
+  "main": "dist/abstract-table.umd.js",
+  "module": "dist/abstract-table.esm.js",
+  "typings": "dist/typings/index.d.ts",
   "keywords": [
     "table",
     "layout"
   ],
-  "main": "dist/abstract-table.umd.js",
-  "module": "dist/abstract-table.esm.js",
   "files": [
     "dist"
   ],
-  "typings": "dist/typings/index.d.ts",
+  "author": "Ourai Lin <ourairyu@gmail.com> (https://ourai.ws/)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anti-chaos/abstract-table.git"
+  },
+  "homepage": "https://github.com/anti-chaos/abstract-table#readme",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc && rollup -c rollup.config.ts",
@@ -19,13 +26,17 @@
     "prerelease": "npm run build",
     "release": "npm publish --access=public"
   },
-  "repository": {
-    "type": "git",
-    "url": ""
+  "dependencies": {
+    "@ntks/event-emitter": "0.0.0",
+    "@ntks/toolbox": "0.0.6"
   },
-  "dependencies": {},
   "devDependencies": {
-    "prettier": "1.18.2",
+    "@ntks/eslint-config": "0.0.0",
+    "@types/lodash": "^4.14.149",
+    "@types/node": "^13.11.1",
+    "eslint": "^7.21.0",
+    "lodash": "^4.17.15",
+    "prettier": "^2.2.1",
     "rimraf": "^3.0.0",
     "rollup": "^1.21.4",
     "rollup-plugin-commonjs": "^10.1.0",
