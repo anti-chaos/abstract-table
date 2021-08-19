@@ -1,4 +1,4 @@
-import { isString, generateRandomId, includes, clone } from '@ntks/toolbox';
+import { isString, generateRandomId, includes, omit, clone } from '@ntks/toolbox';
 import EventEmitter from '@ntks/event-emitter';
 
 import {
@@ -141,8 +141,15 @@ class AbstractTable extends EventEmitter implements Table {
     return this.cells[
       isString(idOrColIndex)
         ? (idOrColIndex as CellId)
-        : this.rows[rowIndex!][idOrColIndex as number]
+        : this.rows[rowIndex!].cells[idOrColIndex as number]
     ];
+  }
+
+  public setCellProperties(id: CellId, properties: Record<string, any>): void {
+    const cell = this.cells[id];
+    const props = omit(properties, ['id', 'span', 'mergedCoord']);
+
+    Object.keys(props).forEach(key => (cell[key] = props[key]));
   }
 
   public getRows(filter?: RowFilter): TableRow[] {
