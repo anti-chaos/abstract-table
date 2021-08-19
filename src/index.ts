@@ -1,2 +1,2 @@
-export { TableCell, TableRow, Table } from './typing';
+export { TableCell, TableRow, TableRange, TableSelection, Table } from './typing';
 export { default } from './AbstractTable';

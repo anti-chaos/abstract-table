@@ -1,4 +1,4 @@
-import { generateRandomId, includes, clone } from '@ntks/toolbox';
+import { isString, generateRandomId, includes, clone } from '@ntks/toolbox';
 import EventEmitter from '@ntks/event-emitter';
 
 import {
@@ -6,6 +6,7 @@ import {
   TableCell,
   InternalRow,
   TableRow,
+  TableRange,
   TableSelection,
   RowFilter,
   RowMapFn,
@@ -28,7 +29,7 @@ class AbstractTable extends EventEmitter implements Table {
 
   private selection: TableSelection | null = null;
 
-  private merged: Record<string, number[]> = {};
+  private merged: Record<string, TableRange> = {};
 
   private createCellOrPlaceholder(empty: boolean = false): CellId | undefined {
     if (empty) {
@@ -91,7 +92,7 @@ class AbstractTable extends EventEmitter implements Table {
 
   private getInternalRowsInRange(): InternalRow[] {
     return this.selection
-      ? this.rows.slice(this.selection.range.sri, this.selection.range.eri + 1)
+      ? this.rows.slice(this.selection.range[1], this.selection.range[3] + 1)
       : [];
   }
 
@@ -105,6 +106,15 @@ class AbstractTable extends EventEmitter implements Table {
     this.rowCount = rowCount;
 
     this.rows = this.createRows(colCount, rowCount);
+  }
+
+  public static getCoordTitle(
+    colIndex: number,
+    rowIndex: number,
+    endColIndex?: number,
+    endRowIndex?: number,
+  ): string {
+    return getTitleCoord(colIndex, rowIndex, endColIndex, endRowIndex);
   }
 
   public getColCount(): number {
@@ -125,6 +135,14 @@ class AbstractTable extends EventEmitter implements Table {
 
   public clearSelection(): void {
     this.selection = null;
+  }
+
+  public getCell(idOrColIndex: CellId | number, rowIndex?: number): TableCell {
+    return this.cells[
+      isString(idOrColIndex)
+        ? (idOrColIndex as CellId)
+        : this.rows[rowIndex!][idOrColIndex as number]
+    ];
   }
 
   public getRows(filter?: RowFilter): TableRow[] {
@@ -175,7 +193,7 @@ class AbstractTable extends EventEmitter implements Table {
   public getMergedInRange(): string[] {
     return this.selection
       ? Object.keys(this.merged).filter(coord => {
-          const { sci, sri, eci, eri } = this.selection!.range;
+          const [sci, sri, eci, eri] = this.selection!.range;
           const [msci, msri, meci, meri] = this.merged[coord];
 
           return msci >= sci && msri >= sri && meci <= eci && meri <= eri;
@@ -188,7 +206,7 @@ class AbstractTable extends EventEmitter implements Table {
       return console.error('请先选择要合并的单元格');
     }
 
-    const { sci, sri, eci, eri } = this.selection.range;
+    const [sci, sri, eci, eri] = this.selection.range;
     const rows = this.getInternalRowsInRange();
 
     rows.forEach((row, ri) => {
@@ -201,7 +219,7 @@ class AbstractTable extends EventEmitter implements Table {
         cell.mergedCoord = mergedCoord;
         cell.span = [colSpan, eri - sri];
 
-        this.merged[mergedCoord] = [sci, sri, eci, eri];
+        this.merged[mergedCoord] = [...this.selection!.range];
 
         this.removeCells(row.cells.splice(sci + 1, colSpan));
       } else {
@@ -284,7 +302,7 @@ class AbstractTable extends EventEmitter implements Table {
       });
     });
 
-    this.rows.splice(this.selection.range.sri, rows.length, ...rows);
+    this.rows.splice(this.selection.range[1], rows.length, ...rows);
 
     this.clearSelection();
   }

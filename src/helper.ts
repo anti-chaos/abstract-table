@@ -6,13 +6,6 @@ function getColTitle(index: number): string {
     : getColTitle(~~((num - 1) / 26)) + getColTitle(num % 26 || 26);
 }
 
-function getTitleCoord(colIndex: number, rowIndex: number): string;
-function getTitleCoord(
-  colIndex: number,
-  rowIndex: number,
-  endColIndex: number,
-  endRowIndex: number,
-): string;
 function getTitleCoord(
   colIndex: number,
   rowIndex: number,

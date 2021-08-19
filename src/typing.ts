@@ -22,15 +22,16 @@ interface TableRow extends Omit<InternalRow, 'cells'> {
   cells: TableCell[];
 }
 
-interface SelectionRange {
-  sri: number; // start row index
-  sci: number; // start column index
-  eri: number; // end row index
-  eci: number; // end column index
-}
+type StartColIndex = number;
+type StartRowIndex = number;
+type EndColIndex = number;
+type EndRowIndex = number;
+
+type TableRange = [StartColIndex, StartRowIndex, EndColIndex, EndRowIndex];
 
 interface TableSelection {
-  range: SelectionRange;
+  cell: TableCell | null;
+  range: TableRange;
 }
 
 type RowFilter = (row: TableRow, index: number) => boolean;
@@ -42,6 +43,8 @@ interface Table extends IEventEmitter {
   getSelection(): TableSelection | null;
   setSelection(selection: TableSelection): void;
   clearSelection(): void;
+  getCell(id: CellId): TableCell;
+  getCell(colIndex: number, rowIndex: number): TableCell;
   getRows(filter: RowFilter): TableRow[];
   getRowsInRange(): TableRow[];
   transformRows<T extends any = TableRow>(mapFn: RowMapFn<T>): T[];
@@ -73,6 +76,7 @@ export {
   TableCell,
   InternalRow,
   TableRow,
+  TableRange,
   TableSelection,
   RowFilter,
   RowMapFn,
