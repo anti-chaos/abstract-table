@@ -60,6 +60,10 @@ interface Table extends IEventEmitter {
   getMergedInRange(): string[];
   mergeCells(): void;
   unmergeCells(): void;
+  insertColumn(colIndex: number, count?: number): void;
+  deleteColumns(): void;
+  insertRow(rowIndex: number, count?: number): void;
+  deleteRows(): void;
 }
 
 type CellCreator = () => Omit<TableCell, 'id'>;

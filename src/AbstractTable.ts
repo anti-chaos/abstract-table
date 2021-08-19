@@ -313,6 +313,64 @@ class AbstractTable extends EventEmitter implements Table {
 
     this.clearSelection();
   }
+
+  public insertColumn(colIndex: number, count: number = 1): void {
+    if (colIndex < 0 || count < 1) {
+      return;
+    }
+
+    this.rows.forEach(row =>
+      row.cells.splice(colIndex, 0, ...(this.createCells(count) as CellId[])),
+    );
+
+    this.colCount += count;
+  }
+
+  public deleteColumns(): void {
+    if (!this.selection) {
+      return;
+    }
+
+    const [sci, sri, eci, eri] = this.selection.range;
+
+    if (eri - sri + 1 !== this.rowCount) {
+      return;
+    }
+
+    const count = eci - sci + 1;
+
+    this.rows.forEach(row => this.removeCells(row.cells.splice(sci, count)));
+
+    this.colCount -= count;
+  }
+
+  public insertRow(rowIndex: number, count: number = 1): void {
+    if (rowIndex < 0 || count < 1) {
+      return;
+    }
+
+    this.rows.splice(rowIndex, 0, ...this.createRows(this.colCount, count));
+
+    this.rowCount += count;
+  }
+
+  public deleteRows(): void {
+    if (!this.selection) {
+      return;
+    }
+
+    const [sci, sri, eci, eri] = this.selection.range;
+
+    if (eci - sci + 1 !== this.colCount) {
+      return;
+    }
+
+    const count = eri - sri + 1;
+
+    this.rows.splice(sri, count).forEach(row => this.removeCells(row.cells));
+
+    this.rowCount -= count;
+  }
 }
 
 export default AbstractTable;
