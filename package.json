@@ -35,7 +35,7 @@
     "@types/lodash": "^4.14.149",
     "@types/node": "^13.11.1",
     "eslint": "^7.21.0",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.21",
     "prettier": "^2.2.1",
     "rimraf": "^3.0.0",
     "rollup": "^1.21.4",
