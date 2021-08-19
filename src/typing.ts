@@ -1,3 +1,5 @@
+import { IEventEmitter } from '@ntks/event-emitter';
+
 type ColSpan = number;
 type RowSpan = number;
 
@@ -31,10 +33,35 @@ interface TableSelection {
   range: SelectionRange;
 }
 
+type RowFilter = (row: TableRow, index: number) => boolean;
+type RowMapFn<T> = (row: TableRow, index: number) => T;
+
+interface Table extends IEventEmitter {
+  getColCount(): number;
+  getRowCount(): number;
+  getSelection(): TableSelection | null;
+  setSelection(selection: TableSelection): void;
+  clearSelection(): void;
+  getRows(filter: RowFilter): TableRow[];
+  getRowsInRange(): TableRow[];
+  transformRows<T extends any = TableRow>(mapFn: RowMapFn<T>): T[];
+  getRowPropertyValue(rowIndex: number, propertyName: string): any;
+  setRowPropertyValue(rowIndex: number, propertyName: string, propertyValue: any): void;
+  setRowsPropertyValue(
+    startRowIndex: number,
+    endRowIndex: number,
+    propertyName: string,
+    propertyValue: any,
+  ): void;
+  getMergedInRange(): string[];
+  mergeCells(): void;
+  unmergeCells(): void;
+}
+
 type CellCreator = () => Omit<TableCell, 'id'>;
 type RowCreator = () => Omit<InternalRow, 'id' | 'cells'>;
 
-interface Initializer {
+interface TableInitializer {
   cellCreator: CellCreator;
   rowCreator: RowCreator;
   colCount: number;
@@ -47,7 +74,10 @@ export {
   InternalRow,
   TableRow,
   TableSelection,
+  RowFilter,
+  RowMapFn,
+  Table,
   CellCreator,
   RowCreator,
-  Initializer,
+  TableInitializer,
 };

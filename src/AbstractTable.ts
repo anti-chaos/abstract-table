@@ -7,13 +7,16 @@ import {
   InternalRow,
   TableRow,
   TableSelection,
+  RowFilter,
+  RowMapFn,
+  Table,
   CellCreator,
   RowCreator,
-  Initializer,
+  TableInitializer,
 } from './typing';
 import { getTitleCoord } from './helper';
 
-class AbstractTable extends EventEmitter {
+class AbstractTable extends EventEmitter implements Table {
   private readonly cellCreator: CellCreator;
   private readonly rowCreator: RowCreator;
 
@@ -51,13 +54,15 @@ class AbstractTable extends EventEmitter {
     return cells;
   }
 
-  private removeCells(ids: CellId[]): TableCell[] {
+  private removeCells(ids: (CellId | undefined)[]): TableCell[] {
     const cells: TableCell[] = [];
 
     ids.forEach(id => {
-      cells.push(this.cells[id]);
+      if (id && this.cells[id]) {
+        cells.push(this.cells[id]);
 
-      delete this.cells[id];
+        delete this.cells[id];
+      }
     });
 
     return cells;
@@ -90,7 +95,7 @@ class AbstractTable extends EventEmitter {
       : [];
   }
 
-  constructor({ cellCreator, rowCreator, colCount, rowCount }: Initializer) {
+  constructor({ cellCreator, rowCreator, colCount, rowCount }: TableInitializer) {
     super();
 
     this.cellCreator = cellCreator;
@@ -122,7 +127,7 @@ class AbstractTable extends EventEmitter {
     this.selection = null;
   }
 
-  public getRows(filter?: (row: TableRow, index: number) => boolean): TableRow[] {
+  public getRows(filter?: RowFilter): TableRow[] {
     const rows = this.getTableRows();
 
     return clone(filter ? rows.filter(filter) : rows);
@@ -132,9 +137,7 @@ class AbstractTable extends EventEmitter {
     return this.getTableRows(this.getInternalRowsInRange());
   }
 
-  public transformRows<T extends any = TableRow>(
-    mapFunc: (row: TableRow, index: number) => T,
-  ): T[] {
+  public transformRows<T extends any = TableRow>(mapFunc: RowMapFn<T>): T[] {
     return clone(this.getTableRows()).map(mapFunc);
   }
 
@@ -152,6 +155,21 @@ class AbstractTable extends EventEmitter {
     }
 
     row[propertyName] = propertyValue;
+  }
+
+  public setRowsPropertyValue(
+    startRowIndex: number,
+    endRowIndex: number,
+    propertyName: string,
+    propertyValue: any,
+  ): void {
+    let ri = startRowIndex;
+
+    while (ri <= endRowIndex) {
+      this.setRowPropertyValue(ri, propertyName, propertyValue);
+
+      ri++;
+    }
   }
 
   public getMergedInRange(): string[] {
@@ -205,9 +223,9 @@ class AbstractTable extends EventEmitter {
     const rows: InternalRow[] = this.createRows(this.colCount, rowsInRange.length, true);
 
     rowsInRange.forEach((row, ri) => {
-      let startCellIndex = rows[ri].cells.findIndex(cell => !cell);
+      let targetCellIndex = rows[ri].cells.findIndex(cell => !cell);
 
-      if (startCellIndex === -1) {
+      if (targetCellIndex === -1) {
         return;
       }
 
@@ -216,7 +234,11 @@ class AbstractTable extends EventEmitter {
 
         this.cells[cellId] = pureCell;
 
-        rows[ri].cells[startCellIndex] = cellId;
+        while (rows[ri].cells[targetCellIndex]) {
+          targetCellIndex++;
+        }
+
+        rows[ri].cells[targetCellIndex] = cellId;
 
         if (span) {
           const [colSpan = 0, rowSpan = 0] = span;
@@ -224,7 +246,7 @@ class AbstractTable extends EventEmitter {
           if (colSpan > 0) {
             this.removeCells(
               rows[ri].cells.splice(
-                startCellIndex + 1,
+                targetCellIndex + 1,
                 colSpan,
                 ...(this.createCells(colSpan) as CellId[]),
               ),
@@ -241,7 +263,7 @@ class AbstractTable extends EventEmitter {
 
               this.removeCells(
                 rows[nextRowIndex].cells.splice(
-                  startCellIndex,
+                  targetCellIndex,
                   cellCount,
                   ...(this.createCells(cellCount) as CellId[]),
                 ),
@@ -255,9 +277,9 @@ class AbstractTable extends EventEmitter {
             delete this.merged[mergedCoord];
           }
 
-          startCellIndex += colSpan + 1;
+          targetCellIndex += colSpan + 1;
         } else {
-          startCellIndex++;
+          targetCellIndex++;
         }
       });
     });
