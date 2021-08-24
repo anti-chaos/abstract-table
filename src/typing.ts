@@ -46,7 +46,7 @@ interface Table extends IEventEmitter {
   getCell(id: CellId): TableCell;
   getCell(colIndex: number, rowIndex: number): TableCell;
   setCellProperties(id: CellId, properties: Record<string, any>): void;
-  getRows(filter: RowFilter): TableRow[];
+  getRows(filter?: RowFilter): TableRow[];
   getRowsInRange(): TableRow[];
   transformRows<T extends any = TableRow>(mapFn: RowMapFn<T>): T[];
   getRowPropertyValue(rowIndex: number, propertyName: string): any;
