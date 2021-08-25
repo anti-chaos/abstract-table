@@ -15,7 +15,7 @@ import {
   RowCreator,
   TableInitializer,
 } from './typing';
-import { getTitleCoord } from './helper';
+import { getColTitle, getColIndex, getTitleCoord } from './helper';
 
 class AbstractTable extends EventEmitter implements Table {
   private readonly cellCreator: CellCreator;
@@ -108,6 +108,14 @@ class AbstractTable extends EventEmitter implements Table {
     this.rows = this.createRows(colCount, rowCount);
   }
 
+  public static getColTitle(index: number): string {
+    return getColTitle(index);
+  }
+
+  public static getColIndex(title: string): number {
+    return getColIndex(title);
+  }
+
   public static getCoordTitle(
     colIndex: number,
     rowIndex: number,
@@ -150,6 +158,10 @@ class AbstractTable extends EventEmitter implements Table {
     const props = omit(properties, ['id', 'span', 'mergedCoord']);
 
     Object.keys(props).forEach(key => (cell[key] = props[key]));
+  }
+
+  public getRow(rowIndex: number): TableRow {
+    return clone(this.getTableRows([this.rows[rowIndex]])[0]);
   }
 
   public getRows(filter?: RowFilter): TableRow[] {

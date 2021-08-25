@@ -1,9 +1,23 @@
-function getColTitle(index: number): string {
-  const num = index + 1;
+const CHAR_BASIS = 'A'.charCodeAt(0);
 
+function convertNumberToName(num: number): string {
   return num <= 26
-    ? String.fromCharCode('A'.charCodeAt(0) - 1 + num)
-    : getColTitle(~~((num - 1) / 26)) + getColTitle(num % 26 || 26);
+    ? String.fromCharCode(CHAR_BASIS - 1 + num)
+    : convertNumberToName(~~((num - 1) / 26)) + convertNumberToName(num % 26 || 26);
+}
+
+function getColTitle(index: number): string {
+  return convertNumberToName(index + 1);
+}
+
+function getColIndex(title: string): number {
+  let index = -1;
+
+  for (let i = 0; i < title.length; i++) {
+    index = (index + 1) * 26 + title.charCodeAt(i) - CHAR_BASIS;
+  }
+
+  return index;
 }
 
 function getTitleCoord(
@@ -21,4 +35,4 @@ function getTitleCoord(
   return coord;
 }
 
-export { getTitleCoord };
+export { getColTitle, getColIndex, getTitleCoord };
