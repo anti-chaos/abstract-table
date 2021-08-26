@@ -3,6 +3,7 @@ import EventEmitter from '@ntks/event-emitter';
 
 import {
   CellId,
+  InternalCell,
   TableCell,
   InternalRow,
   TableRow,
@@ -10,6 +11,8 @@ import {
   TableSelection,
   RowFilter,
   RowMapFn,
+  TableEvents,
+  Result,
   Table,
   CellCreator,
   RowCreator,
@@ -17,11 +20,11 @@ import {
 } from './typing';
 import { getColTitle, getColIndex, getTitleCoord } from './helper';
 
-class AbstractTable extends EventEmitter implements Table {
+class AbstractTable extends EventEmitter<TableEvents> implements Table {
   private readonly cellCreator: CellCreator;
   private readonly rowCreator: RowCreator;
 
-  private cells: Record<CellId, TableCell> = {};
+  private cells: Record<CellId, InternalCell> = {};
   private rows: InternalRow[] = [];
 
   private colCount: number = 0;
@@ -38,7 +41,7 @@ class AbstractTable extends EventEmitter implements Table {
 
     const id = `${generateRandomId('AbstractTableCell')}${Object.keys(this.cells).length}`;
 
-    this.cells[id] = { ...this.cellCreator(), id };
+    this.cells[id] = { ...this.cellCreator(), id, __meta: { modified: false } };
 
     return id;
   }
@@ -55,8 +58,8 @@ class AbstractTable extends EventEmitter implements Table {
     return cells;
   }
 
-  private removeCells(ids: (CellId | undefined)[]): TableCell[] {
-    const cells: TableCell[] = [];
+  private removeCells(ids: (CellId | undefined)[]): InternalCell[] {
+    const cells: InternalCell[] = [];
 
     ids.forEach(id => {
       if (id && this.cells[id]) {
@@ -67,6 +70,21 @@ class AbstractTable extends EventEmitter implements Table {
     });
 
     return cells;
+  }
+
+  private markCellAsModified(id: CellId): void {
+    this.cells[id].__meta.modified = true;
+  }
+
+  private getTableCell(idOrColIndex: CellId | number, rowIndex?: number): TableCell {
+    return omit(
+      this.cells[
+        isString(idOrColIndex)
+          ? (idOrColIndex as CellId)
+          : this.rows[rowIndex!].cells[idOrColIndex as number]
+      ],
+      ['__meta'],
+    );
   }
 
   private createRows(colCount: number, rowCount: number, placeholderCell?: boolean): InternalRow[] {
@@ -86,7 +104,7 @@ class AbstractTable extends EventEmitter implements Table {
   private getTableRows(internalRows: InternalRow[] = this.rows): TableRow[] {
     return internalRows.map(({ cells, ...others }) => ({
       ...others,
-      cells: cells.map(id => this.cells[id]),
+      cells: cells.map(id => this.getTableCell(id)),
     }));
   }
 
@@ -133,31 +151,29 @@ class AbstractTable extends EventEmitter implements Table {
     return this.rowCount;
   }
 
-  public getSelection(): TableSelection | null {
-    return this.selection;
-  }
-
-  public setSelection(selection: TableSelection): void {
-    this.selection = selection;
-  }
-
-  public clearSelection(): void {
-    this.selection = null;
-  }
-
   public getCell(idOrColIndex: CellId | number, rowIndex?: number): TableCell {
-    return this.cells[
-      isString(idOrColIndex)
-        ? (idOrColIndex as CellId)
-        : this.rows[rowIndex!].cells[idOrColIndex as number]
-    ];
+    return this.getTableCell(idOrColIndex, rowIndex);
   }
 
   public setCellProperties(id: CellId, properties: Record<string, any>): void {
-    const cell = this.cells[id];
-    const props = omit(properties, ['id', 'span', 'mergedCoord']);
+    const props = omit(properties, ['__meta', 'id', 'span', 'mergedCoord']);
+    const propKeys = Object.keys(props);
 
-    Object.keys(props).forEach(key => (cell[key] = props[key]));
+    if (propKeys.length === 0) {
+      return;
+    }
+
+    const cell = this.cells[id];
+
+    propKeys.forEach(key => (cell[key] = props[key]));
+
+    this.markCellAsModified(id);
+
+    this.emit('cell-update', this.getCell(id));
+  }
+
+  public isCellModified(id: CellId): boolean {
+    return this.cells[id].__meta.modified === true;
   }
 
   public getRow(rowIndex: number): TableRow {
@@ -168,10 +184,6 @@ class AbstractTable extends EventEmitter implements Table {
     const rows = this.getTableRows();
 
     return clone(filter ? rows.filter(filter) : rows);
-  }
-
-  public getRowsInRange(): TableRow[] {
-    return this.getTableRows(this.getInternalRowsInRange());
   }
 
   public transformRows<T extends any = TableRow>(mapFunc: RowMapFn<T>): T[] {
@@ -192,6 +204,8 @@ class AbstractTable extends EventEmitter implements Table {
     }
 
     row[propertyName] = propertyValue;
+
+    this.emit('row-update', this.getRow(rowIndex));
   }
 
   public setRowsPropertyValue(
@@ -209,6 +223,22 @@ class AbstractTable extends EventEmitter implements Table {
     }
   }
 
+  public fill(cells: TableCell[]): void {
+    // TODO
+  }
+
+  public getSelection(): TableSelection | null {
+    return this.selection;
+  }
+
+  public setSelection(selection: TableSelection): void {
+    this.selection = selection;
+  }
+
+  public clearSelection(): void {
+    this.selection = null;
+  }
+
   public getMergedInRange(): string[] {
     return this.selection
       ? Object.keys(this.merged).filter(coord => {
@@ -220,19 +250,24 @@ class AbstractTable extends EventEmitter implements Table {
       : [];
   }
 
-  public mergeCells(): void {
+  public getRowsInRange(): TableRow[] {
+    return this.getTableRows(this.getInternalRowsInRange());
+  }
+
+  public mergeCells(): Result {
     if (!this.selection) {
-      return console.error('请先选择要合并的单元格');
+      return { success: false, message: '请先选择要合并的单元格' };
     }
 
     const [sci, sri, eci, eri] = this.selection.range;
-    const rows = this.getInternalRowsInRange();
+    const rowsInRange = this.getInternalRowsInRange();
 
-    rows.forEach((row, ri) => {
+    rowsInRange.forEach((row, ri) => {
       const colSpan = eci - sci;
 
       if (ri === 0) {
-        const cell = this.cells[row.cells[sci]];
+        const cellId = row.cells[sci];
+        const cell = this.cells[cellId];
         const mergedCoord = getTitleCoord(sci, sri, eci, eri);
 
         cell.mergedCoord = mergedCoord;
@@ -240,20 +275,23 @@ class AbstractTable extends EventEmitter implements Table {
 
         this.merged[mergedCoord] = [...this.selection!.range];
 
+        this.markCellAsModified(cellId);
         this.removeCells(row.cells.splice(sci + 1, colSpan));
       } else {
         this.removeCells(row.cells.splice(sci, colSpan + 1));
       }
     });
 
-    this.rows.splice(sri, rows.length, ...rows);
+    this.rows.splice(sri, rowsInRange.length, ...rowsInRange);
 
     this.clearSelection();
+
+    return { success: true };
   }
 
-  public unmergeCells(): void {
+  public unmergeCells(): Result {
     if (!this.selection) {
-      return console.error('请先选择要取消合并的单元格');
+      return { success: false, message: '请先选择要取消合并的单元格' };
     }
 
     const rowsInRange = this.getInternalRowsInRange();
@@ -314,6 +352,8 @@ class AbstractTable extends EventEmitter implements Table {
             delete this.merged[mergedCoord];
           }
 
+          this.markCellAsModified(cellId);
+
           targetCellIndex += colSpan + 1;
         } else {
           targetCellIndex++;
@@ -324,11 +364,13 @@ class AbstractTable extends EventEmitter implements Table {
     this.rows.splice(this.selection.range[1], rows.length, ...rows);
 
     this.clearSelection();
+
+    return { success: true };
   }
 
-  public insertColumn(colIndex: number, count: number = 1): void {
+  public insertColumn(colIndex: number, count: number = 1): Result {
     if (colIndex < 0 || count < 1) {
-      return;
+      return { success: false, message: '插入位置有误或未设置要插入的列数' };
     }
 
     this.rows.forEach(row =>
@@ -336,17 +378,19 @@ class AbstractTable extends EventEmitter implements Table {
     );
 
     this.colCount += count;
+
+    return { success: true };
   }
 
-  public deleteColumns(): void {
+  public deleteColumns(): Result {
     if (!this.selection) {
-      return;
+      return { success: false, message: '没有选中区域' };
     }
 
     const [sci, sri, eci, eri] = this.selection.range;
 
     if (eri - sri + 1 !== this.rowCount) {
-      return;
+      return { success: false, message: '没有选中整列' };
     }
 
     const count = eci - sci + 1;
@@ -354,27 +398,31 @@ class AbstractTable extends EventEmitter implements Table {
     this.rows.forEach(row => this.removeCells(row.cells.splice(sci, count)));
 
     this.colCount -= count;
+
+    return { success: true };
   }
 
-  public insertRow(rowIndex: number, count: number = 1): void {
+  public insertRow(rowIndex: number, count: number = 1): Result {
     if (rowIndex < 0 || count < 1) {
-      return;
+      return { success: false, message: '插入位置有误或未设置要插入的行数' };
     }
 
     this.rows.splice(rowIndex, 0, ...this.createRows(this.colCount, count));
 
     this.rowCount += count;
+
+    return { success: true };
   }
 
-  public deleteRows(): void {
+  public deleteRows(): Result {
     if (!this.selection) {
-      return;
+      return { success: false, message: '没有选中区域' };
     }
 
     const [sci, sri, eci, eri] = this.selection.range;
 
     if (eci - sci + 1 !== this.colCount) {
-      return;
+      return { success: false, message: '没有选中整行' };
     }
 
     const count = eri - sri + 1;
@@ -382,6 +430,8 @@ class AbstractTable extends EventEmitter implements Table {
     this.rows.splice(sri, count).forEach(row => this.removeCells(row.cells));
 
     this.rowCount -= count;
+
+    return { success: true };
   }
 }
 
