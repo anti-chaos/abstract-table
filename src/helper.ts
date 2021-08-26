@@ -1,9 +1,11 @@
 const CHAR_BASIS = 'A'.charCodeAt(0);
+const BASE_MAX = 26;
 
 function convertNumberToName(num: number): string {
-  return num <= 26
+  return num <= BASE_MAX
     ? String.fromCharCode(CHAR_BASIS - 1 + num)
-    : convertNumberToName(~~((num - 1) / 26)) + convertNumberToName(num % 26 || 26);
+    : convertNumberToName(~~((num - 1) / BASE_MAX)) +
+        convertNumberToName(num % BASE_MAX || BASE_MAX);
 }
 
 function getColTitle(index: number): string {
@@ -14,7 +16,7 @@ function getColIndex(title: string): number {
   let index = -1;
 
   for (let i = 0; i < title.length; i++) {
-    index = (index + 1) * 26 + title.charCodeAt(i) - CHAR_BASIS;
+    index = (index + 1) * BASE_MAX + title.charCodeAt(i) - CHAR_BASIS;
   }
 
   return index;
