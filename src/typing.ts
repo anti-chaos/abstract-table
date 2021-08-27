@@ -18,11 +18,21 @@ interface InternalCell {
 
 interface TableCell extends Omit<InternalCell, '__meta'> {}
 
+type ColumnId = string;
+
+interface InternalColumn {
+  id: ColumnId;
+  width?: number;
+}
+
+interface TableColumn extends InternalColumn {}
+
 type RowId = string;
 
 interface InternalRow {
   id: RowId;
   cells: CellId[];
+  height?: number;
 }
 
 interface TableRow extends Omit<InternalRow, 'cells'> {
@@ -52,12 +62,17 @@ interface Result {
 }
 
 interface Table extends IEventEmitter<TableEvents> {
-  getColCount(): number;
-  getRowCount(): number;
   getCell(id: CellId): TableCell;
   getCell(colIndex: number, rowIndex: number): TableCell;
   setCellProperties(id: CellId, properties: Record<string, any>): void;
   isCellModified(id: CellId): boolean;
+  getColumnCount(): number;
+  getColumnWidth(indexOrTitle: number | string): number | undefined;
+  setColumnWidth(indexOrTitle: number | string, width: number | 'auto'): void;
+  getColumns(): TableColumn[];
+  getRowCount(): number;
+  getRowHeight(indexOrTitle: number | string): number | undefined;
+  setRowHeight(indexOrTitle: number | string, height: number | 'auto'): void;
   getRow(rowIndex: number): TableRow;
   getRows(filter?: RowFilter): TableRow[];
   transformRows<T extends any = TableRow>(mapFn: RowMapFn<T>): T[];
@@ -78,9 +93,11 @@ interface Table extends IEventEmitter<TableEvents> {
   mergeCells(): Result;
   unmergeCells(): Result;
   insertColumn(colIndex: number, count?: number): Result;
-  deleteColumns(): Result;
+  deleteColumns(startColIndex: number, count?: number): Result;
+  deleteColumnsInRange(): Result;
   insertRow(rowIndex: number, count?: number): Result;
-  deleteRows(): Result;
+  deleteRows(startRowIndex: number, count?: number): Result;
+  deleteRowsInRange(): Result;
 }
 
 type CellCreator = () => Omit<TableCell, 'id'>;
@@ -97,6 +114,8 @@ export {
   CellId,
   InternalCell,
   TableCell,
+  InternalColumn,
+  TableColumn,
   InternalRow,
   TableRow,
   TableRange,

@@ -1,10 +1,12 @@
-import { isString, generateRandomId, includes, omit, clone } from '@ntks/toolbox';
+import { isNumber, isString, generateRandomId, includes, omit, clone } from '@ntks/toolbox';
 import EventEmitter from '@ntks/event-emitter';
 
 import {
   CellId,
   InternalCell,
   TableCell,
+  InternalColumn,
+  TableColumn,
   InternalRow,
   TableRow,
   TableRange,
@@ -24,15 +26,22 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
   private readonly cellCreator: CellCreator;
   private readonly rowCreator: RowCreator;
 
-  private cells: Record<CellId, InternalCell> = {};
+  private columns: InternalColumn[] = [];
   private rows: InternalRow[] = [];
 
-  private colCount: number = 0;
-  private rowCount: number = 0;
+  private cells: Record<CellId, InternalCell> = {};
 
   private selection: TableSelection | null = null;
 
   private merged: Record<string, TableRange> = {};
+
+  private resolveColumnIndex(indexOrTitle: number | string): number {
+    return isNumber(indexOrTitle) ? (indexOrTitle as number) : getColIndex(indexOrTitle as string);
+  }
+
+  private resolveRowIndex(indexOrTitle: number | string): number {
+    return isNumber(indexOrTitle) ? (indexOrTitle as number) : Number(indexOrTitle) - 1;
+  }
 
   private createCellOrPlaceholder(empty: boolean = false): CellId | undefined {
     if (empty) {
@@ -87,6 +96,16 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     );
   }
 
+  private createColumns(colCount: number): InternalColumn[] {
+    const cols: InternalColumn[] = [];
+
+    for (let ci = 0; ci < colCount; ci++) {
+      cols.push({ id: `${generateRandomId('AbstractTableColumn')}${ci}` });
+    }
+
+    return cols;
+  }
+
   private createRows(colCount: number, rowCount: number, placeholderCell?: boolean): InternalRow[] {
     const rows: InternalRow[] = [];
 
@@ -120,17 +139,15 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     this.cellCreator = cellCreator;
     this.rowCreator = rowCreator;
 
-    this.colCount = colCount;
-    this.rowCount = rowCount;
-
+    this.columns = this.createColumns(colCount);
     this.rows = this.createRows(colCount, rowCount);
   }
 
-  public static getColTitle(index: number): string {
+  public static getColumnTitle(index: number): string {
     return getColTitle(index);
   }
 
-  public static getColIndex(title: string): number {
+  public static getColumnIndex(title: string): number {
     return getColIndex(title);
   }
 
@@ -141,14 +158,6 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     endRowIndex?: number,
   ): string {
     return getTitleCoord(colIndex, rowIndex, endColIndex, endRowIndex);
-  }
-
-  public getColCount(): number {
-    return this.colCount;
-  }
-
-  public getRowCount(): number {
-    return this.rowCount;
   }
 
   public getCell(idOrColIndex: CellId | number, rowIndex?: number): TableCell {
@@ -174,6 +183,46 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
 
   public isCellModified(id: CellId): boolean {
     return this.cells[id].__meta.modified === true;
+  }
+
+  public getColumnCount(): number {
+    return this.columns.length;
+  }
+
+  public getColumnWidth(indexOrTitle: number | string): number | undefined {
+    return this.columns[this.resolveColumnIndex(indexOrTitle)].width;
+  }
+
+  public setColumnWidth(indexOrTitle: number | string, width: number | 'auto'): void {
+    const colIndex = this.resolveColumnIndex(indexOrTitle);
+
+    if (isNumber(width)) {
+      this.columns[colIndex].width = width as number;
+    } else {
+      delete this.columns[colIndex].width;
+    }
+  }
+
+  public getColumns(): TableColumn[] {
+    return clone(this.columns);
+  }
+
+  public getRowCount(): number {
+    return this.rows.length;
+  }
+
+  public getRowHeight(indexOrTitle: number | string): number | undefined {
+    return this.rows[this.resolveRowIndex(indexOrTitle)].height;
+  }
+
+  public setRowHeight(indexOrTitle: number | string, height: number | 'auto'): void {
+    const rowIndex = this.resolveRowIndex(indexOrTitle);
+
+    if (isNumber(height)) {
+      this.rows[rowIndex].height = height as number;
+    } else {
+      delete this.rows[rowIndex].height;
+    }
   }
 
   public getRow(rowIndex: number): TableRow {
@@ -295,7 +344,7 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     }
 
     const rowsInRange = this.getInternalRowsInRange();
-    const rows: InternalRow[] = this.createRows(this.colCount, rowsInRange.length, true);
+    const rows: InternalRow[] = this.createRows(this.getColumnCount(), rowsInRange.length, true);
 
     rowsInRange.forEach((row, ri) => {
       let targetCellIndex = rows[ri].cells.findIndex(cell => !cell);
@@ -373,33 +422,35 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
       return { success: false, message: '插入位置有误或未设置要插入的列数' };
     }
 
+    this.columns.splice(colIndex, 0, ...this.createColumns(count));
+
     this.rows.forEach(row =>
       row.cells.splice(colIndex, 0, ...(this.createCells(count) as CellId[])),
     );
 
-    this.colCount += count;
+    return { success: true };
+  }
+
+  public deleteColumns(startColIndex: number, count?: number): Result {
+    const resolvedCount = count === undefined ? this.columns.length - startColIndex : count;
+
+    this.columns.splice(startColIndex, resolvedCount);
+
+    this.rows.forEach(row => this.removeCells(row.cells.splice(startColIndex, resolvedCount)));
 
     return { success: true };
   }
 
-  public deleteColumns(): Result {
+  public deleteColumnsInRange(): Result {
     if (!this.selection) {
       return { success: false, message: '没有选中区域' };
     }
 
     const [sci, sri, eci, eri] = this.selection.range;
 
-    if (eri - sri + 1 !== this.rowCount) {
-      return { success: false, message: '没有选中整列' };
-    }
-
-    const count = eci - sci + 1;
-
-    this.rows.forEach(row => this.removeCells(row.cells.splice(sci, count)));
-
-    this.colCount -= count;
-
-    return { success: true };
+    return eri - sri + 1 === this.getRowCount()
+      ? this.deleteColumns(sci, eci - sci + 1)
+      : { success: false, message: '没有选中整列' };
   }
 
   public insertRow(rowIndex: number, count: number = 1): Result {
@@ -407,31 +458,29 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
       return { success: false, message: '插入位置有误或未设置要插入的行数' };
     }
 
-    this.rows.splice(rowIndex, 0, ...this.createRows(this.colCount, count));
-
-    this.rowCount += count;
+    this.rows.splice(rowIndex, 0, ...this.createRows(this.getColumnCount(), count));
 
     return { success: true };
   }
 
-  public deleteRows(): Result {
+  public deleteRows(startRowIndex: number, count?: number): Result {
+    this.rows
+      .splice(startRowIndex, count === undefined ? this.rows.length - startRowIndex : count)
+      .forEach(row => this.removeCells(row.cells));
+
+    return { success: true };
+  }
+
+  public deleteRowsInRange(): Result {
     if (!this.selection) {
       return { success: false, message: '没有选中区域' };
     }
 
     const [sci, sri, eci, eri] = this.selection.range;
 
-    if (eci - sci + 1 !== this.colCount) {
-      return { success: false, message: '没有选中整行' };
-    }
-
-    const count = eri - sri + 1;
-
-    this.rows.splice(sri, count).forEach(row => this.removeCells(row.cells));
-
-    this.rowCount -= count;
-
-    return { success: true };
+    return eci - sci + 1 === this.getColumnCount()
+      ? this.deleteRows(sri, eri - sri + 1)
+      : { success: false, message: '没有选中整行' };
   }
 }
 
