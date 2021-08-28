@@ -248,7 +248,7 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
   public setRowPropertyValue(rowIndex: number, propertyName: string, propertyValue: any): void {
     const row = this.rows[rowIndex];
 
-    if (!row || includes(propertyName, ['id', 'cells'])) {
+    if (!row || includes(propertyName, ['id', 'cells', 'height'])) {
       return;
     }
 
