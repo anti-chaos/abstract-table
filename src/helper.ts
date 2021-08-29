@@ -1,3 +1,5 @@
+import { TableRange } from './typing';
+
 const CHAR_BASIS = 'A'.charCodeAt(0);
 const BASE_MAX = 26;
 
@@ -37,4 +39,16 @@ function getTitleCoord(
   return coord;
 }
 
-export { getColTitle, getColIndex, getTitleCoord };
+function getIndexCoord(titleCoord: string): TableRange {
+  const range: number[] = [];
+
+  titleCoord.split(':').forEach(title => {
+    const matched = title.match(/([A-Z]+)([0-9]+)/)!;
+
+    range.push(getColIndex(matched[1]), Number(matched[2]) - 1);
+  });
+
+  return range as TableRange;
+}
+
+export { getColTitle, getColIndex, getTitleCoord, getIndexCoord };

@@ -20,7 +20,7 @@ import {
   RowCreator,
   TableInitializer,
 } from './typing';
-import { getColTitle, getColIndex, getTitleCoord } from './helper';
+import { getColTitle, getColIndex, getTitleCoord, getIndexCoord } from './helper';
 
 class AbstractTable extends EventEmitter<TableEvents> implements Table {
   private readonly cellCreator: CellCreator;
@@ -464,9 +464,53 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
   }
 
   public deleteRows(startRowIndex: number, count?: number): Result {
-    this.rows
-      .splice(startRowIndex, count === undefined ? this.rows.length - startRowIndex : count)
-      .forEach(row => this.removeCells(row.cells));
+    const resolvedCount = count === undefined ? this.rows.length - startRowIndex : count;
+
+    this.rows.splice(startRowIndex, resolvedCount).forEach(row => this.removeCells(row.cells));
+
+    if (startRowIndex > 0) {
+      let noRowSpanCellRowIndex = startRowIndex - 1;
+
+      while (this.rows[noRowSpanCellRowIndex].cells.length !== this.getColumnCount()) {
+        noRowSpanCellRowIndex--;
+      }
+
+      const endRowIndex = startRowIndex + resolvedCount - 1;
+      const baseRowindex = noRowSpanCellRowIndex + 1;
+
+      this.rows.slice(baseRowindex, startRowIndex).forEach((row, ri) => {
+        row.cells.forEach(cellId => {
+          const { span = [] } = this.cells[cellId];
+          const [colSpan = 0, rowSpan = 0] = span;
+          const bottomRowIndex = baseRowindex + ri + rowSpan;
+
+          if (rowSpan === 0 || bottomRowIndex < startRowIndex) {
+            return;
+          }
+
+          delete this.merged[this.cells[cellId].mergedCoord!];
+
+          const newRowSpan =
+            rowSpan -
+            (bottomRowIndex >= endRowIndex ? resolvedCount : bottomRowIndex - startRowIndex + 1);
+
+          if (colSpan === 0 && newRowSpan === 0) {
+            delete this.cells[cellId].span;
+            delete this.cells[cellId].mergedCoord;
+          } else {
+            this.cells[cellId].span = [colSpan, newRowSpan];
+
+            const [sci, sri, eci] = getIndexCoord(this.cells[cellId].mergedCoord!);
+            const range: TableRange = [sci, sri, eci, sri + newRowSpan];
+            const mergedCoord = getTitleCoord(...range);
+
+            this.cells[cellId].mergedCoord = mergedCoord;
+
+            this.merged[mergedCoord] = range;
+          }
+        });
+      });
+    }
 
     return { success: true };
   }
