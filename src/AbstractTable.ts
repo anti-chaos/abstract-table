@@ -436,7 +436,57 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
 
     this.columns.splice(startColIndex, resolvedCount);
 
-    this.rows.forEach(row => this.removeCells(row.cells.splice(startColIndex, resolvedCount)));
+    if (startColIndex > 0) {
+      this.rows.forEach((row, ri) => {
+        let baseCellIndex = -1;
+        let colSpan = 0;
+        let rowSpan = 0;
+
+        let cell: InternalCell;
+
+        do {
+          baseCellIndex++;
+
+          cell = this.cells[row.cells[baseCellIndex]];
+
+          if (cell.span) {
+            colSpan = cell.span[0];
+            rowSpan = cell.span[1];
+          } else {
+            colSpan = 0;
+            rowSpan = 0;
+          }
+        } while (baseCellIndex + colSpan < startColIndex);
+
+        const endColIndex = startColIndex + resolvedCount - 1;
+        const startIndexInRow = baseCellIndex + 1;
+
+        let endIndexInRow: number;
+
+        if (endColIndex > startIndexInRow) {
+          do {
+            baseCellIndex++;
+            cell = this.cells[row.cells[baseCellIndex]];
+
+            if (cell.span) {
+              colSpan = cell.span[0];
+              rowSpan = cell.span[1];
+            } else {
+              colSpan = 0;
+              rowSpan = 0;
+            }
+          } while (baseCellIndex + colSpan < endColIndex);
+
+          endIndexInRow = baseCellIndex;
+        } else {
+          endIndexInRow = startIndexInRow > endColIndex ? baseCellIndex : startIndexInRow;
+        }
+
+        this.removeCells(row.cells.splice(startIndexInRow, endIndexInRow - startIndexInRow + 1));
+      });
+    } else {
+      this.rows.forEach(row => this.removeCells(row.cells.splice(0)));
+    }
 
     return { success: true };
   }
