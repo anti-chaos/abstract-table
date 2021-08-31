@@ -471,34 +471,105 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
       const endColIndex = startColIndex + resolvedCount - 1;
 
       this.rows.forEach((row, ri) => {
-        let startIndexInRow = -1;
-        let endIndexInRow = -1;
+        const hitCells: { id: CellId; index: number }[] = [];
 
         for (let idx = 0; idx < row.cells.length; idx++) {
-          const {
-            span = [],
-            __meta: { colIndex, rowIndex },
-          } = this.cells[row.cells[idx]];
-          const [colSpan = 0, rowSpan = 0] = span;
-          const calcColIndex = colIndex + colSpan;
+          const cellId = row.cells[idx];
+          const { span = [], __meta: meta } = this.cells[cellId];
+          const calcColIndex = meta.colIndex + (span[0] || 0);
 
-          if (startIndexInRow === -1 && calcColIndex >= startColIndex) {
-            startIndexInRow = colSpan > 0 ? idx + 1 : idx;
+          if (calcColIndex >= startColIndex) {
+            hitCells.push({ id: cellId, index: idx });
           }
 
-          if (endIndexInRow === -1 && calcColIndex >= endColIndex) {
-            endIndexInRow = idx;
-          }
-
-          if (startIndexInRow !== -1 && endIndexInRow !== -1) {
+          if (calcColIndex >= endColIndex) {
             break;
           }
         }
 
-        this.removeCells(row.cells.splice(startIndexInRow, endIndexInRow - startIndexInRow + 1));
+        if (hitCells.length > 0) {
+          for (let idx = hitCells.length - 1; idx >= 0; idx--) {
+            const { id: cellId, index: cellIndex } = hitCells[idx];
+            const {
+              span = [],
+              mergedCoord,
+              __meta: { colIndex },
+            } = this.cells[cellId];
+            const [colSpan = 0, rowSpan = 0] = span;
+            const calcColIndex = colIndex + colSpan;
+
+            if (mergedCoord) {
+              delete this.merged[mergedCoord];
+            }
+
+            if (colSpan > 0 && (colIndex < startColIndex || calcColIndex > endColIndex)) {
+              if (colIndex < startColIndex) {
+                const newColSpan =
+                  colSpan -
+                  (calcColIndex >= endColIndex ? resolvedCount : calcColIndex - startColIndex + 1);
+
+                if (newColSpan === 0 && rowSpan === 0) {
+                  delete this.cells[cellId].span;
+                  delete this.cells[cellId].mergedCoord;
+                }
+              } else if (calcColIndex > endColIndex) {
+                const remained = calcColIndex - endColIndex;
+                const newColSpan = remained - 1;
+                const newStartColIndex = endColIndex + 1;
+                const newCellId = this.createCells(ri, newStartColIndex, 1).pop()!;
+
+                if (newColSpan > 0 || rowSpan > 0) {
+                  const range: TableRange = [
+                    newStartColIndex,
+                    ri,
+                    newStartColIndex + newColSpan,
+                    ri + rowSpan,
+                  ];
+                  const newMergedCoord = getTitleCoord(...range);
+
+                  this.cells[newCellId].span = [newColSpan, rowSpan];
+                  this.cells[newCellId].mergedCoord = newMergedCoord;
+
+                  this.merged[newMergedCoord] = range;
+                }
+
+                this.removeCells(row.cells.splice(cellIndex, 1, newCellId));
+              }
+            } else {
+              this.removeCells(row.cells.splice(cellIndex, 1));
+            }
+          }
+        }
+
+        row.cells.forEach(cellId => {
+          const {
+            span = [],
+            mergedCoord,
+            __meta: { colIndex },
+          } = this.cells[cellId];
+
+          if (colIndex > endColIndex) {
+            const newColIndex = colIndex - resolvedCount;
+
+            this.cells[cellId].__meta.colIndex = newColIndex;
+
+            if (mergedCoord) {
+              delete this.merged[mergedCoord];
+
+              const [sci, sri, eci, eri] = getIndexCoord(mergedCoord);
+              const range: TableRange = [newColIndex, sri, newColIndex + (span[0] || 0), eri];
+              const newMergedCoord = getTitleCoord(...range);
+
+              this.cells[cellId].mergedCoord = newMergedCoord;
+
+              this.merged[newMergedCoord] = range;
+            }
+          }
+        });
       });
     } else {
       this.rows.forEach(row => this.removeCells(row.cells.splice(0)));
+      this.merged = {};
     }
 
     return { success: true };
@@ -573,6 +644,8 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
           }
         });
       });
+    } else {
+      this.merged = {};
     }
 
     return { success: true };
