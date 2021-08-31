@@ -468,49 +468,31 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     this.columns.splice(startColIndex, resolvedCount);
 
     if (startColIndex > 0) {
+      const endColIndex = startColIndex + resolvedCount - 1;
+
       this.rows.forEach((row, ri) => {
-        let baseCellIndex = -1;
-        let colSpan = 0;
-        let rowSpan = 0;
+        let startIndexInRow = -1;
+        let endIndexInRow = -1;
 
-        let cell: InternalCell;
+        for (let idx = 0; idx < row.cells.length; idx++) {
+          const {
+            span = [],
+            __meta: { colIndex, rowIndex },
+          } = this.cells[row.cells[idx]];
+          const [colSpan = 0, rowSpan = 0] = span;
+          const calcColIndex = colIndex + colSpan;
 
-        do {
-          baseCellIndex++;
-
-          cell = this.cells[row.cells[baseCellIndex]];
-
-          if (cell.span) {
-            colSpan = cell.span[0];
-            rowSpan = cell.span[1];
-          } else {
-            colSpan = 0;
-            rowSpan = 0;
+          if (startIndexInRow === -1 && calcColIndex >= startColIndex) {
+            startIndexInRow = colSpan > 0 ? idx + 1 : idx;
           }
-        } while (baseCellIndex + colSpan < startColIndex);
 
-        const endColIndex = startColIndex + resolvedCount - 1;
-        const startIndexInRow = baseCellIndex + 1;
+          if (endIndexInRow === -1 && calcColIndex >= endColIndex) {
+            endIndexInRow = idx;
+          }
 
-        let endIndexInRow: number;
-
-        if (endColIndex > startIndexInRow) {
-          do {
-            baseCellIndex++;
-            cell = this.cells[row.cells[baseCellIndex]];
-
-            if (cell.span) {
-              colSpan = cell.span[0];
-              rowSpan = cell.span[1];
-            } else {
-              colSpan = 0;
-              rowSpan = 0;
-            }
-          } while (baseCellIndex + colSpan < endColIndex);
-
-          endIndexInRow = baseCellIndex;
-        } else {
-          endIndexInRow = startIndexInRow > endColIndex ? baseCellIndex : startIndexInRow;
+          if (startIndexInRow !== -1 && endIndexInRow !== -1) {
+            break;
+          }
         }
 
         this.removeCells(row.cells.splice(startIndexInRow, endIndexInRow - startIndexInRow + 1));
