@@ -1,6 +1,6 @@
 {
   "name": "@ntks/abstract-table",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Table without entity",
   "main": "dist/abstract-table.umd.js",
   "module": "dist/abstract-table.esm.js",
