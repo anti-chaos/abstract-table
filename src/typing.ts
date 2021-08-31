@@ -6,6 +6,8 @@ type RowSpan = number;
 type CellId = string;
 
 interface CellMeta {
+  colIndex: number;
+  rowIndex: number;
   modified: boolean;
 }
 
@@ -44,6 +46,7 @@ type StartRowIndex = number;
 type EndColIndex = number;
 type EndRowIndex = number;
 
+type CellCoordinate = [StartColIndex, StartRowIndex] | [string, string];
 type TableRange = [StartColIndex, StartRowIndex, EndColIndex, EndRowIndex];
 
 interface TableSelection {
@@ -64,6 +67,7 @@ interface Result {
 interface Table extends IEventEmitter<TableEvents> {
   getCell(id: CellId): TableCell;
   getCell(colIndex: number, rowIndex: number): TableCell;
+  getCellCoordinate(id: CellId, title?: boolean): CellCoordinate;
   setCellProperties(id: CellId, properties: Record<string, any>): void;
   isCellModified(id: CellId): boolean;
   getColumnCount(): number;
@@ -118,6 +122,7 @@ export {
   TableColumn,
   InternalRow,
   TableRow,
+  CellCoordinate,
   TableRange,
   TableSelection,
   RowFilter,

@@ -9,6 +9,7 @@ import {
   TableColumn,
   InternalRow,
   TableRow,
+  CellCoordinate,
   TableRange,
   TableSelection,
   RowFilter,
@@ -43,24 +44,33 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     return isNumber(indexOrTitle) ? (indexOrTitle as number) : Number(indexOrTitle) - 1;
   }
 
-  private createCellOrPlaceholder(empty: boolean = false): CellId | undefined {
+  private createCellOrPlaceholder(
+    rowIndex: number,
+    colIndex: number,
+    empty: boolean = false,
+  ): CellId | undefined {
     if (empty) {
       return undefined;
     }
 
     const id = `${generateRandomId('AbstractTableCell')}${Object.keys(this.cells).length}`;
 
-    this.cells[id] = { ...this.cellCreator(), id, __meta: { modified: false } };
+    this.cells[id] = { ...this.cellCreator(), id, __meta: { rowIndex, colIndex, modified: false } };
 
     return id;
   }
 
-  private createCells(count: number, empty?: boolean): (CellId | undefined)[] {
+  private createCells(
+    rowIndex: number,
+    startColIndex: number,
+    count: number,
+    empty?: boolean,
+  ): (CellId | undefined)[] {
     const cells: (CellId | undefined)[] = [];
 
     if (count > 0) {
       for (let ci = 0; ci < count; ci++) {
-        cells.push(this.createCellOrPlaceholder(empty));
+        cells.push(this.createCellOrPlaceholder(rowIndex, startColIndex + ci, empty));
       }
     }
 
@@ -106,14 +116,19 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     return cols;
   }
 
-  private createRows(colCount: number, rowCount: number, placeholderCell?: boolean): InternalRow[] {
+  private createRows(
+    startRowIndex: number,
+    rowCount: number,
+    colCount: number,
+    placeholderCell?: boolean,
+  ): InternalRow[] {
     const rows: InternalRow[] = [];
 
     for (let ri = 0; ri < rowCount; ri++) {
       rows.push({
         ...this.rowCreator(),
         id: `${generateRandomId('AbstractTableRow')}${ri}`,
-        cells: this.createCells(colCount, placeholderCell) as CellId[],
+        cells: this.createCells(startRowIndex + ri, 0, colCount, placeholderCell) as CellId[],
       });
     }
 
@@ -140,7 +155,7 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     this.rowCreator = rowCreator;
 
     this.columns = this.createColumns(colCount);
-    this.rows = this.createRows(colCount, rowCount);
+    this.rows = this.createRows(0, rowCount, colCount);
   }
 
   public static getColumnTitle(index: number): string {
@@ -162,6 +177,12 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
 
   public getCell(idOrColIndex: CellId | number, rowIndex?: number): TableCell {
     return this.getTableCell(idOrColIndex, rowIndex);
+  }
+
+  public getCellCoordinate(id: CellId, title: boolean = false): CellCoordinate {
+    const { colIndex, rowIndex } = this.cells[id].__meta;
+
+    return title ? [getColTitle(colIndex), `${rowIndex + 1}`] : [colIndex, rowIndex];
   }
 
   public setCellProperties(id: CellId, properties: Record<string, any>): void {
@@ -343,8 +364,14 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
       return { success: false, message: '请先选择要取消合并的单元格' };
     }
 
+    const startRowIndex = this.selection.range[1];
     const rowsInRange = this.getInternalRowsInRange();
-    const rows: InternalRow[] = this.createRows(this.getColumnCount(), rowsInRange.length, true);
+    const rows: InternalRow[] = this.createRows(
+      startRowIndex,
+      rowsInRange.length,
+      this.getColumnCount(),
+      true,
+    );
 
     rowsInRange.forEach((row, ri) => {
       let targetCellIndex = rows[ri].cells.findIndex(cell => !cell);
@@ -372,7 +399,7 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
               rows[ri].cells.splice(
                 targetCellIndex + 1,
                 colSpan,
-                ...(this.createCells(colSpan) as CellId[]),
+                ...(this.createCells(startRowIndex + ri, targetCellIndex + 1, colSpan) as CellId[]),
               ),
             );
           }
@@ -389,7 +416,11 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
                 rows[nextRowIndex].cells.splice(
                   targetCellIndex,
                   cellCount,
-                  ...(this.createCells(cellCount) as CellId[]),
+                  ...(this.createCells(
+                    startRowIndex + nextRowIndex,
+                    targetCellIndex,
+                    cellCount,
+                  ) as CellId[]),
                 ),
               );
 
@@ -424,15 +455,15 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
 
     this.columns.splice(colIndex, 0, ...this.createColumns(count));
 
-    this.rows.forEach(row =>
-      row.cells.splice(colIndex, 0, ...(this.createCells(count) as CellId[])),
+    this.rows.forEach((row, ri) =>
+      row.cells.splice(colIndex, 0, ...(this.createCells(ri, colIndex, count) as CellId[])),
     );
 
     return { success: true };
   }
 
   public deleteColumns(startColIndex: number, count?: number): Result {
-    const resolvedCount = count === undefined ? this.columns.length - startColIndex : count;
+    const resolvedCount = count === undefined ? this.getColumnCount() - startColIndex : count;
 
     this.columns.splice(startColIndex, resolvedCount);
 
@@ -508,13 +539,13 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
       return { success: false, message: '插入位置有误或未设置要插入的行数' };
     }
 
-    this.rows.splice(rowIndex, 0, ...this.createRows(this.getColumnCount(), count));
+    this.rows.splice(rowIndex, 0, ...this.createRows(rowIndex, count, this.getColumnCount()));
 
     return { success: true };
   }
 
   public deleteRows(startRowIndex: number, count?: number): Result {
-    const resolvedCount = count === undefined ? this.rows.length - startRowIndex : count;
+    const resolvedCount = count === undefined ? this.getRowCount() - startRowIndex : count;
 
     this.rows.splice(startRowIndex, resolvedCount).forEach(row => this.removeCells(row.cells));
 
