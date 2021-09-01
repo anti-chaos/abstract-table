@@ -599,8 +599,73 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
 
   public deleteRows(startRowIndex: number, count?: number): Result {
     const resolvedCount = count === undefined ? this.getRowCount() - startRowIndex : count;
+    const endRowIndex = startRowIndex + resolvedCount - 1;
 
-    this.rows.splice(startRowIndex, resolvedCount).forEach(row => this.removeCells(row.cells));
+    const overflowRowIndex = endRowIndex + 1;
+    const overflowCells: CellId[] = [];
+
+    this.rows.slice(startRowIndex, overflowRowIndex).forEach(row => {
+      row.cells.forEach(cellId => {
+        const {
+          span = [],
+          __meta: { rowIndex },
+        } = this.cells[cellId];
+        const rowSpan = span[1] || 0;
+
+        if (rowIndex + rowSpan > endRowIndex) {
+          overflowCells.push(cellId);
+        }
+      });
+    });
+
+    if (overflowCells.length > 0) {
+      const overflowCellRow = this.rows[overflowRowIndex];
+
+      const cells = this.createCells(overflowRowIndex, 0, this.getColumnCount(), true);
+
+      overflowCellRow.cells.forEach(cellId => (cells[this.cells[cellId].__meta.colIndex] = cellId));
+
+      overflowCells.forEach(cellId => {
+        const {
+          span = [],
+          __meta: { colIndex, rowIndex },
+        } = this.cells[cellId];
+        const [colSpan = 0, rowSpan = 0] = span;
+        const newRowSpan = rowSpan - (endRowIndex - rowIndex + 1);
+        const newCellId = this.createCells(overflowRowIndex, colIndex, 1).pop()!;
+
+        if (colSpan > 0 || newRowSpan > 0) {
+          const range: TableRange = [
+            colIndex,
+            overflowRowIndex,
+            colIndex + colSpan,
+            overflowRowIndex + newRowSpan,
+          ];
+          const mergedCoord = getTitleCoord(...range);
+
+          this.cells[newCellId].span = [colSpan, newRowSpan];
+          this.cells[newCellId].mergedCoord = mergedCoord;
+
+          this.merged[mergedCoord] = range;
+        }
+
+        cells[colIndex] = newCellId;
+      });
+
+      overflowCellRow.cells = cells.filter(cellId => !!cellId) as CellId[];
+    }
+
+    this.rows.splice(startRowIndex, resolvedCount).forEach(row => {
+      row.cells.forEach(cellId => {
+        const { mergedCoord } = this.cells[cellId];
+
+        if (mergedCoord) {
+          delete this.merged[mergedCoord];
+        }
+      });
+
+      this.removeCells(row.cells);
+    });
 
     if (startRowIndex > 0) {
       let noRowSpanCellRowIndex = startRowIndex - 1;
@@ -609,7 +674,6 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
         noRowSpanCellRowIndex--;
       }
 
-      const endRowIndex = startRowIndex + resolvedCount - 1;
       const baseRowindex = noRowSpanCellRowIndex + 1;
 
       this.rows.slice(baseRowindex, startRowIndex).forEach((row, ri) => {
@@ -641,6 +705,25 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
             this.cells[cellId].mergedCoord = mergedCoord;
 
             this.merged[mergedCoord] = range;
+          }
+        });
+      });
+
+      this.rows.slice(startRowIndex, this.getRowCount()).forEach((row, ri) => {
+        row.cells.forEach(cellId => {
+          const { mergedCoord, span = [] } = this.cells[cellId];
+          const newRowIndex = startRowIndex + ri;
+
+          this.cells[cellId].__meta.rowIndex = newRowIndex;
+
+          if (mergedCoord) {
+            const [sci, _, eci] = getIndexCoord(mergedCoord);
+            const range: TableRange = [sci, newRowIndex, eci, newRowIndex + (span[1] || 0)];
+            const newMergedCoord = getTitleCoord(...range);
+
+            delete this.merged[mergedCoord];
+
+            this.merged[newMergedCoord] = range;
           }
         });
       });
