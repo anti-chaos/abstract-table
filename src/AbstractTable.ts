@@ -95,13 +95,24 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     this.cells[id].__meta.modified = true;
   }
 
-  private getTableCell(idOrColIndex: CellId | number, rowIndex?: number): TableCell {
+  private getTableCell(
+    idOrColIndex: CellId | number,
+    rowIndexOrTitle?: number | string,
+  ): TableCell {
     let cellId: CellId;
 
     if (isString(idOrColIndex)) {
-      cellId = idOrColIndex as CellId;
+      if (isString(rowIndexOrTitle)) {
+        const colIndex = getColIndex(idOrColIndex as string);
+
+        cellId = this.rows[Number(rowIndexOrTitle as string) - 1].cells.find(
+          id => this.cells[id].__meta.colIndex === colIndex,
+        )!;
+      } else {
+        cellId = idOrColIndex as CellId;
+      }
     } else {
-      cellId = this.rows[rowIndex!].cells.find(
+      cellId = this.rows[rowIndexOrTitle as number].cells.find(
         id => this.cells[id].__meta.colIndex === (idOrColIndex as number),
       )!;
     }
@@ -178,8 +189,8 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     return getTitleCoord(colIndex, rowIndex, endColIndex, endRowIndex);
   }
 
-  public getCell(idOrColIndex: CellId | number, rowIndex?: number): TableCell {
-    return this.getTableCell(idOrColIndex, rowIndex);
+  public getCell(idOrColIndex: CellId | number, rowIndexOrTitle?: number | string): TableCell {
+    return this.getTableCell(idOrColIndex, rowIndexOrTitle);
   }
 
   public getCellCoordinate(id: CellId, title: boolean = false): CellCoordinate {

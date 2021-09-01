@@ -67,6 +67,7 @@ interface Result {
 interface Table extends IEventEmitter<TableEvents> {
   getCell(id: CellId): TableCell;
   getCell(colIndex: number, rowIndex: number): TableCell;
+  getCell(colTitle: string, rowTitle: string): TableCell;
   getCellCoordinate(id: CellId, title?: boolean): CellCoordinate;
   setCellProperties(id: CellId, properties: Record<string, any>): void;
   isCellModified(id: CellId): boolean;
