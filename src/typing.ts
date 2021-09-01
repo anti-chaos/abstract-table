@@ -18,6 +18,11 @@ interface InternalCell {
   mergedCoord?: string;
 }
 
+interface CellData extends Omit<InternalCell, '__meta' | 'id' | 'mergedCoord'> {
+  coordinate: [number, number] | [string, string];
+  [key: string]: any;
+}
+
 interface TableCell extends Omit<InternalCell, '__meta'> {}
 
 type ColumnId = string;
@@ -89,7 +94,7 @@ interface Table extends IEventEmitter<TableEvents> {
     propertyName: string,
     propertyValue: any,
   ): void;
-  fill(cells: TableCell[]): void;
+  fill(cells: CellData[]): void;
   getSelection(): TableSelection | null;
   setSelection(selection: TableSelection): void;
   clearSelection(): void;
@@ -118,6 +123,7 @@ interface TableInitializer {
 export {
   CellId,
   InternalCell,
+  CellData,
   TableCell,
   InternalColumn,
   TableColumn,

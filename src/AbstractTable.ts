@@ -4,6 +4,7 @@ import EventEmitter from '@ntks/event-emitter';
 import {
   CellId,
   InternalCell,
+  CellData,
   TableCell,
   InternalColumn,
   TableColumn,
@@ -307,8 +308,86 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
     }
   }
 
-  public fill(cells: TableCell[]): void {
-    // TODO
+  public fill(cells: CellData[]): void {
+    const needRemoveCells: { index: number; cellIndexes: number[] }[] = [];
+
+    cells.forEach(cell => {
+      const { coordinate, span = [], ...others } = omit(cell, [
+        '__meta',
+        'id',
+        'mergedCoord',
+      ]) as CellData;
+
+      const [colIndexOrTitle, rowIndexOrTitle] = coordinate;
+
+      let colIndex: number;
+      let rowIndex: number;
+
+      if (isString(colIndexOrTitle) && isString(rowIndexOrTitle)) {
+        colIndex = getColIndex(colIndexOrTitle as string);
+        rowIndex = Number(rowIndexOrTitle) - 1;
+      } else {
+        colIndex = colIndexOrTitle as number;
+        rowIndex = rowIndexOrTitle as number;
+      }
+
+      const { id } = this.getCell(colIndex, rowIndex);
+      const [colSpan = 0, rowSpan = 0] = span;
+
+      if (colSpan > 0 || rowSpan > 0) {
+        const range: TableRange = [colIndex, rowIndex, colIndex + colSpan, rowIndex + rowSpan];
+        const mergedCoord = getTitleCoord(...range);
+
+        this.cells[id].span = [colSpan, rowSpan];
+        this.cells[id].mergedCoord = mergedCoord;
+
+        this.merged[mergedCoord] = range;
+
+        if (colSpan > 0) {
+          const indexArr: number[] = [];
+
+          let nextColIndex = colIndex + 1;
+
+          while (nextColIndex <= colIndex + colSpan) {
+            indexArr.push(nextColIndex);
+
+            nextColIndex++;
+          }
+
+          needRemoveCells.push({ index: rowIndex, cellIndexes: indexArr });
+        }
+
+        if (rowSpan > 0) {
+          let nextRowIndex = rowIndex + 1;
+
+          while (nextRowIndex <= rowIndex + rowSpan) {
+            const indexArr: number[] = [];
+
+            let nextColIndex = colIndex;
+
+            while (nextColIndex <= colIndex + colSpan) {
+              indexArr.push(nextColIndex);
+
+              nextColIndex++;
+            }
+
+            needRemoveCells.push({ index: nextRowIndex, cellIndexes: indexArr });
+
+            nextRowIndex++;
+          }
+        }
+      }
+
+      this.setCellProperties(id, others);
+    });
+
+    needRemoveCells
+      .sort((a, b) => (a.index < b.index ? -1 : 1))
+      .forEach(({ index, cellIndexes }) =>
+        cellIndexes
+          .sort((a, b) => (a > b ? -1 : 1))
+          .forEach(cellIndex => this.removeCells(this.rows[index].cells.splice(cellIndex, 1))),
+      );
   }
 
   public getSelection(): TableSelection | null {
