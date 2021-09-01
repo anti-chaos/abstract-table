@@ -96,14 +96,17 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
   }
 
   private getTableCell(idOrColIndex: CellId | number, rowIndex?: number): TableCell {
-    return omit(
-      this.cells[
-        isString(idOrColIndex)
-          ? (idOrColIndex as CellId)
-          : this.rows[rowIndex!].cells[idOrColIndex as number]
-      ],
-      ['__meta'],
-    );
+    let cellId: CellId;
+
+    if (isString(idOrColIndex)) {
+      cellId = idOrColIndex as CellId;
+    } else {
+      cellId = this.rows[rowIndex!].cells.find(
+        id => this.cells[id].__meta.colIndex === (idOrColIndex as number),
+      )!;
+    }
+
+    return omit(this.cells[cellId], ['__meta']);
   }
 
   private createColumns(colCount: number): InternalColumn[] {
