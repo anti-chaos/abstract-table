@@ -568,10 +568,13 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
 
         for (let idx = 0; idx < row.cells.length; idx++) {
           const cellId = row.cells[idx];
-          const { span = [], __meta: meta } = this.cells[cellId];
-          const calcColIndex = meta.colIndex + (span[0] || 0);
+          const {
+            span = [],
+            __meta: { colIndex },
+          } = this.cells[cellId];
+          const calcColIndex = colIndex + (span[0] || 0);
 
-          if (calcColIndex >= startColIndex) {
+          if (calcColIndex >= startColIndex && colIndex <= endColIndex) {
             hitCells.push({ id: cellId, index: idx });
           }
 
@@ -586,7 +589,7 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
             const {
               span = [],
               mergedCoord,
-              __meta: { colIndex },
+              __meta: { colIndex, rowIndex },
             } = this.cells[cellId];
             const [colSpan = 0, rowSpan = 0] = span;
             const calcColIndex = colIndex + colSpan;
@@ -604,6 +607,19 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
                 if (newColSpan === 0 && rowSpan === 0) {
                   delete this.cells[cellId].span;
                   delete this.cells[cellId].mergedCoord;
+                } else {
+                  const range: TableRange = [
+                    colIndex,
+                    rowIndex,
+                    colIndex + newColSpan,
+                    rowIndex + rowSpan,
+                  ];
+                  const newMergedCoord = getTitleCoord(...range);
+
+                  this.cells[cellId].span = [newColSpan, rowSpan];
+                  this.cells[cellId].mergedCoord = newMergedCoord;
+
+                  this.merged[newMergedCoord] = range;
                 }
               } else if (calcColIndex > endColIndex) {
                 const remained = calcColIndex - endColIndex;
@@ -767,7 +783,7 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
         noRowSpanCellRowIndex--;
       }
 
-      const baseRowindex = noRowSpanCellRowIndex + 1;
+      const baseRowindex = noRowSpanCellRowIndex;
 
       this.rows.slice(baseRowindex, startRowIndex).forEach((row, ri) => {
         row.cells.forEach(cellId => {
@@ -814,9 +830,10 @@ class AbstractTable extends EventEmitter<TableEvents> implements Table {
             const range: TableRange = [sci, newRowIndex, eci, newRowIndex + (span[1] || 0)];
             const newMergedCoord = getTitleCoord(...range);
 
-            delete this.merged[mergedCoord];
-
+            this.cells[cellId].mergedCoord = newMergedCoord;
             this.merged[newMergedCoord] = range;
+
+            delete this.merged[mergedCoord];
           }
         });
       });
